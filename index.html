@@ -320,13 +320,13 @@ if(C.scan&&C.scan.provider==='gemini'){
   })());
   const prompt=sups=>`You read Israeli supplier invoices (usually Hebrew). Return ONLY a JSON object:
 {"supplier": string (the issuing business name, as printed), "number": string (invoice number), "date": "YYYY-MM-DD" (invoice date), "total": number (final amount to pay INCLUDING VAT), "items": [{"name": string (item description, in the invoice's language), "unit": string (unit if printed, else ""), "qty": number, "price": number (unit price BEFORE VAT), "total": number (line total BEFORE VAT)}]}
-Rules: numbers without currency signs or thousands separators. If the invoice shows prices including VAT per line, convert to before-VAT by dividing by 1.18. Skip lines that are subtotals, VAT, discounts or payment details. If something is unreadable, use "" or 0.
+Rules: copy every number exactly as printed on the invoice. Do NOT calculate, convert or remove VAT yourself. Numbers without currency signs or thousands separators. Skip lines that are subtotals, VAT, discounts or payment details. If something is unreadable, use "" or 0.
 Known suppliers (prefer the exact matching name if it is one of them): ${sups.join(' | ')}`;
   window.SCAN_INVOICE=async req=>{
     const models=await init();let err;
     // try the most accurate model first; on overload, timeout or retirement fall through to the next one
     const limit=(pr,ms)=>Promise.race([pr,new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
-    for(const m of models){try{const r=await limit(m.generateContent([{text:prompt(req.suppliers||[])},{inlineData:{mimeType:req.mime,data:req.data}}]),30000);
+    for(const m of models){try{const r=await limit(m.generateContent([{text:prompt(req.suppliers||[])},{inlineData:{mimeType:req.mime,data:req.data}}]),20000);
       let t=r.response.text().trim().replace(/^```(json)?/,'').replace(/```$/,'');return JSON.parse(t)}catch(e){err=e;console.warn('scan model failed',e&&e.message)}}
     console.error('scan failed',err);throw err};
 }
@@ -1338,7 +1338,7 @@ Object.assign(ACT,{ceom:D=>{S.ceoMonth=addMonths(S.ceoMonth,+D.d);loadCeo(true);
 async function scanProvider(req){if(typeof window.SCAN_INVOICE==='function')return window.SCAN_INVOICE(req);const e=new Error('not_connected');e.code='not_connected';throw e}
 function scanHTML(d,nf){const sc=d.scan||{};
   if(sc.status==='busy'){const f=nf[sc.file]||nf[nf.length-1];
-    return `<div class="scanbar busy">${f&&f.type.startsWith('image/')?`<img class="thumb" src="data:${f.type};base64,${f.data}" alt="">`:'<span class="pdf">PDF</span>'}<div class="t"><b class="dots">קורא את החשבונית</b><small>מזהה ספק, תאריך, סכום וכל השורות. זה לוקח כמה שניות.</small></div></div>`}
+    return `<div class="scanbar busy">${f&&f.type.startsWith('image/')?`<img class="thumb" src="data:${f.type};base64,${f.data}" alt="">`:'<span class="pdf">PDF</span>'}<div class="t"><b class="dots">קורא את החשבונית</b><small>מזהה ספק, תאריך, סכום וכל השורות. בדרך כלל זה לוקח כמה שניות, ובשעות עומס עד דקה.</small></div></div>`}
   if(sc.status==='done'){const r=sc.sum;
     return `<div class="scanok"><b>המערכת מילאה את הפרטים מהחשבונית</b><span>${r.fields.join(', ')}${r.items?` ו-${r.items} פריטים`:''}. השדות שמולאו מסומנים במסגרת צהובה.</span>${r.flags?`<span style="color:var(--warn)">${r.flags===1?'שורה אחת לא מסתדרת':r.flags+' שורות לא מסתדרות'}: הכמות כפול המחיר לא יוצא כמו הסכום של השורה בחשבונית. כדאי לבדוק ${r.flags===1?'אותה':'אותן'} לפני השמירה.</span>`:''}${window.SCAN_NOTE?`<small>${esc(window.SCAN_NOTE)}</small>`:''}</div>
     ${sc.unknownSup?`<div class="notice">הספק "${esc(sc.unknownSup)}" לא נמצא ברשימת הספקים. <button class="linkbtn" data-act="scan-addsup">הוספה כספק חדש</button></div>`:''}`}
