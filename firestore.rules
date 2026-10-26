@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// כללי האבטחה של מסד הנתונים - ניהול סניף, גו קנטינה נוריות.
+// מדביקים את כל הקובץ ב-Firebase Console ← Firestore Database ← Rules ← Publish.
+// המייל בפונקציה ownerEmail חייב להיות זהה ל-ownerEmail בקובץ config.js.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ownerEmail() { return 'kfirdaabul1@gmail.com'; }
+
+    function signedIn() { return request.auth != null; }
+    function isOwner() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == ownerEmail();
+    }
+    function isManager() {
+      return isOwner() || (signedIn() && exists(/databases/$(database)/documents/roles/$(request.auth.uid)));
+    }
+    function isEmployee() {
+      return signedIn() && exists(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+    function isMember() { return isManager() || isEmployee(); }
+
+    // מי מנהל: רק בעל המערכת ממנה מנהלים
+    match /roles/{uid} {
+      allow read: if isOwner() || (signedIn() && request.auth.uid == uid);
+      allow write: if isOwner();
+    }
+
+    // קודי הצטרפות: עובד יכול לבדוק קוד שהוא יודע, רק מנהל רואה את הרשימה ויוצר קודים
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow list, create, update, delete: if isManager();
+    }
+
+    // עובדים: נרשמים בעצמם רק עם קוד הצטרפות תקף, ולא יכולים להעביר את עצמם לסניף אחר
+    match /employees/{uid} {
+      allow get: if isMember() || (signedIn() && request.auth.uid == uid);
+      allow list: if isMember();
+      allow create: if isManager() || (
+        signedIn() && request.auth.uid == uid
+        && request.resource.data.joinCode is string
+        && exists(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode))
+        && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.hotel == request.resource.data.hotel
+      );
+      allow update: if isManager() || (
+        signedIn() && request.auth.uid == uid
+        && request.resource.data.hotel == resource.data.hotel
+      );
+      allow delete: if isManager();
+    }
+
+    // זמינות: כל עובד רק את שלו, מנהלים את כולם
+    match /avail/{uid} {
+      allow read, write: if isManager() || (isEmployee() && request.auth.uid == uid);
+    }
+
+    // שכר ונתוני מנהל: רק מנהלים
+    match /mgr/{uid} {
+      allow read, write: if isManager();
+    }
+
+    // ספקים, חשבוניות וקבצי החשבוניות: רק מנהלים רואים וכותבים
+    match /suppliers/{id}    { allow read, write: if isManager(); }
+    match /invoices/{id}     { allow read, write: if isManager(); }
+    match /invoiceFiles/{id} { allow read, write: if isManager(); }
+
+    // הגדרות, סניפים, משמרות וסידור: כל הצוות קורא, רק מנהלים כותבים
+    match /settings/{id} { allow read: if isMember(); allow write: if isManager(); }
+    match /hotels/{id}   { allow read: if isMember(); allow write: if isManager(); }
+    match /shifts/{id}   { allow read: if isMember(); allow write: if isManager(); }
+    match /schedule/{id} { allow read: if isMember(); allow write: if isManager(); }
+  }
+}
