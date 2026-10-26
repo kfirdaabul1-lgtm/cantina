@@ -23,5 +23,14 @@ window.APP_CONFIG = {
   appUrl: "",
 
   // כניסה עם SMS. דורש חשבון חיוב (Blaze) ב-Firebase ועולה כסף לכל הודעה.
-  enablePhone: false
+  enablePhone: false,
+
+  // סריקת חשבוניות עם Gemini (Firebase AI Logic), מוגנת ב-App Check.
+  // siteKey הוא המפתח הציבורי של reCAPTCHA Enterprise (לא סודי).
+  scan: {
+    provider: "gemini",
+    siteKey: "6LdqOQIuAAAAAHRod4nQwVgrvorBxv4H0IWj_v9x",
+    // לפי הסדר: המדויק ביותר קודם. אם מודל עמוס או הוצא משימוש, עוברים לבא.
+    models: ["gemini-3.8-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
+  }
 };
