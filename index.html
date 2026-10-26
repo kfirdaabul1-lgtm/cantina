@@ -305,6 +305,32 @@ input.auto,select.auto{border-color:var(--brass);box-shadow:inset 0 0 0 1px var(
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <!-- Connection settings: fill in config.js -->
 <script src="config.js"></script>
+<!-- Invoice scanning: Gemini through Firebase AI Logic, protected by App Check (reCAPTCHA Enterprise). Loaded only when someone scans. -->
+<script type="module">
+const C=window.APP_CONFIG||{};
+if(C.scan&&C.scan.provider==='gemini'){
+  const V='12.4.0',B='https://www.gstatic.com/firebasejs/'+V+'/';
+  let ready=null;
+  const init=()=>ready||(ready=(async()=>{
+    const [{initializeApp},{initializeAppCheck,ReCaptchaEnterpriseProvider},{getAI,getGenerativeModel,GoogleAIBackend}]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-app-check.js'),import(B+'firebase-ai.js')]);
+    const app=initializeApp(C.firebase,'scan');
+    initializeAppCheck(app,{provider:new ReCaptchaEnterpriseProvider(C.scan.siteKey),isTokenAutoRefreshEnabled:true});
+    const ai=getAI(app,{backend:new GoogleAIBackend()});
+    return (C.scan.models||['gemini-2.5-flash']).map(m=>getGenerativeModel(ai,{model:m,generationConfig:{responseMimeType:'application/json',temperature:0}}));
+  })());
+  const prompt=sups=>`You read Israeli supplier invoices (usually Hebrew). Return ONLY a JSON object:
+{"supplier": string (the issuing business name, as printed), "number": string (invoice number), "date": "YYYY-MM-DD" (invoice date), "total": number (final amount to pay INCLUDING VAT), "items": [{"name": string (item description, in the invoice's language), "unit": string (unit if printed, else ""), "qty": number, "price": number (unit price BEFORE VAT), "total": number (line total BEFORE VAT)}]}
+Rules: numbers without currency signs or thousands separators. If the invoice shows prices including VAT per line, convert to before-VAT by dividing by 1.18. Skip lines that are subtotals, VAT, discounts or payment details. If something is unreadable, use "" or 0.
+Known suppliers (prefer the exact matching name if it is one of them): ${sups.join(' | ')}`;
+  window.SCAN_INVOICE=async req=>{
+    const models=await init();let err;
+    // try the most accurate model first; on overload, timeout or retirement fall through to the next one
+    const limit=(pr,ms)=>Promise.race([pr,new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),ms))]);
+    for(const m of models){try{const r=await limit(m.generateContent([{text:prompt(req.suppliers||[])},{inlineData:{mimeType:req.mime,data:req.data}}]),30000);
+      let t=r.response.text().trim().replace(/^```(json)?/,'').replace(/```$/,'');return JSON.parse(t)}catch(e){err=e;console.warn('scan model failed',e&&e.message)}}
+    console.error('scan failed',err);throw err};
+}
+</script>
 <script>
 const CFG=window.APP_CONFIG||{};
 const BIZ='גו קנטינה נוריות';
