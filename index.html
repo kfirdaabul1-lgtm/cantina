@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#132033">
-<title>ניהול סניף · גו קנטינה נוריות</title>
+<title>גו קנטינה נוריות</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&family=Suez+One&display=swap">
@@ -385,7 +385,7 @@ function renderTop(){
   const tabs=S.admin?TABS[secOf(S.tab)]:[['avail','הזמינות שלי'],['mine','המשמרות שלי'],['profile','הפרופיל שלי']];
   const nav=inApp&&S.week&&(S.admin?secOf(S.tab)==='shifts':S.tab==='mine');
   $('#top').innerHTML=`<div class="wrap top-in">
-    <div class="brand"><span class="mark">${BOWL}</span><div><div class="b1">${S.admin?'ניהול הסניף':'סידור עבודה'}</div><div class="b2">${S.auth==='in'&&!S.registering?`${esc(hotelName(S.hotel))} · ${S.admin?'ממשק מנהל':'ממשק עובד'} · `:''}${S.auth==='in'?'<button class="linkbtn" data-act="logout">יציאה</button>':''}</div></div></div>
+    <div class="brand"><span class="mark">${BOWL}</span><div><div class="b1">${esc(S.ready&&S.auth==='in'&&!S.registering?hotelName(S.hotel):BIZ)}</div><div class="b2">${S.auth==='in'&&!S.registering?`${S.admin?'ממשק מנהל':'ממשק עובד'} · `:''}${S.auth==='in'?'<button class="linkbtn" data-act="logout">יציאה</button>':''}</div></div></div>
     ${inApp&&S.admin?`<div class="seg secsw" role="group" aria-label="אזור">${SECTIONS.map(([k,n])=>`<button data-act="section" data-s="${k}" aria-pressed="${secOf(S.tab)===k}">${n}</button>`).join('')}</div>`:''}
     ${nav?`<div class="weeknav"><button data-act="week" data-d="-7" aria-label="שבוע קודם">›</button><div class="wk"><span class="wk-l">שבוע</span><b class="mono">${weekLabel(S.week)}</b></div><button data-act="week" data-d="7" aria-label="שבוע הבא">‹</button></div>`:''}
   </div>
@@ -684,7 +684,7 @@ function vMine(){
 /* ---------- employee: profile ---------- */
 function vProfile(){
   const e=S.emps[S.uid]||{},isNew=!S.emps[S.uid],depts=dv('pf','depts',e.depts||[]);
-  return wrap(`<section class="head"><h1>${isNew?'הצטרפות לסידור העבודה':'הפרופיל שלי'}</h1><p class="lede">${isNew?'ממלאים פעם אחת את הפרטים ובוחרים באילו מחלקות אתם עובדים. אחרי השמירה אפשר לסמן זמינות.':'אפשר לעדכן פרטים ומחלקות בכל זמן.'}</p></section>
+  return wrap(`<section class="head"><h1>${isNew?'הצטרפות לגו קנטינה נוריות':'הפרופיל שלי'}</h1><p class="lede">${isNew?'ממלאים פעם אחת את הפרטים ובוחרים באילו מחלקות אתם עובדים. אחרי השמירה אפשר לסמן זמינות.':'אפשר לעדכן פרטים ומחלקות בכל זמן.'}</p></section>
   <div class="card">
     <div class="row"><label class="f">שם מלא<input type="text" id="pf_name" data-f="pf.name" value="${esc(dv('pf','name',e.name||S.meName||''))}" autocomplete="name"></label>
     <label class="f">טלפון<input type="tel" id="pf_phone" data-f="pf.phone" value="${esc(dv('pf','phone',e.phone||''))}" autocomplete="tel" dir="ltr"></label></div>
@@ -749,14 +749,14 @@ function sheetSend(){const c=cfg();
 
 /* ---------- login, registration, roles, join codes ---------- */
 function vLogin(){const ph=!!CFG.enablePhone;
-  return wrap(`<section class="head" style="max-width:440px;width:100%;margin-inline:auto;padding-top:24px"><h1>כניסה לסידור העבודה</h1><p class="lede">${BIZ} · לעובדים ולמנהלים. עובד חדש? אחרי הכניסה מקלידים את קוד ההצטרפות שקיבלתם מהמנהל.</p></section>
+  return wrap(`<section class="head" style="max-width:440px;width:100%;margin-inline:auto;padding-top:24px"><h1>כניסה לגו קנטינה נוריות</h1><p class="lede">לעובדים ולמנהלים. עובד חדש? אחרי הכניסה מקלידים את קוד ההצטרפות שקיבלתם מהמנהל.</p></section>
   <div class="card" style="max-width:440px;width:100%;margin-inline:auto">
     <button class="btn pri" style="justify-content:center;padding:12px" data-act="login-google">כניסה עם Google</button>
     ${ph?`<div class="sep"></div>${S.phoneSent?`<label class="f">הקוד שקיבלת ב-SMS<input type="text" id="lg_code" inputmode="numeric" autocomplete="one-time-code" data-f="login.code" dir="ltr"></label><button class="btn" data-act="phone-verify">כניסה</button>`:`<label class="f">או כניסה עם מספר טלפון<input type="tel" id="lg_phone" data-f="login.phone" dir="ltr" placeholder="050-1234567" value="${esc(dv('login','phone',''))}"></label><button class="btn" data-act="phone-send">שליחת קוד ב-SMS</button>`}`:''}
     <p class="muted" style="font-size:.8rem">אם הכניסה לא נפתחת, פתחו את הקישור בדפדפן עצמו (Chrome או Safari) ולא מתוך אפליקציה אחרת.</p>
   </div>`)}
 function vRegister(){const g=k=>dv('reg',k,''),depts=dv('reg','depts',[]);
-  return wrap(`<section class="head"><h1>הצטרפות לסידור העבודה</h1><p class="lede">ממלאים פעם אחת את הפרטים. את קוד ההצטרפות מקבלים מהמנהל, והוא משייך אתכם למסעדה הנכונה.</p></section>
+  return wrap(`<section class="head"><h1>הצטרפות לגו קנטינה נוריות</h1><p class="lede">ממלאים פעם אחת את הפרטים. את קוד ההצטרפות מקבלים מהמנהל, והוא משייך אתכם למסעדה הנכונה.</p></section>
   <div class="card">
     <label class="f">קוד הצטרפות<input type="text" id="reg_code" data-f="reg.code" value="${esc(g('code'))}" dir="ltr" autocapitalize="characters" autocomplete="off" placeholder="למשל K7Q2MX"></label>
     <div class="row"><label class="f">שם מלא<input type="text" id="reg_name" data-f="reg.name" value="${esc(dv('reg','name',S.meName||''))}" autocomplete="name"></label>
