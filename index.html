@@ -319,7 +319,7 @@ if(C.scan&&C.scan.provider==='gemini'){
     return (C.scan.models||['gemini-2.5-flash']).map(m=>getGenerativeModel(ai,{model:m,generationConfig:{responseMimeType:'application/json',temperature:0}}));
   })());
   const prompt=sups=>`You read Israeli supplier invoices (usually Hebrew). Return ONLY a JSON object:
-{"supplier": string (the issuing business name, as printed), "number": string (invoice number), "date": "YYYY-MM-DD" (invoice date), "total": number (final amount to pay INCLUDING VAT), "items": [{"name": string (item description, in the invoice's language), "unit": string (unit if printed, else ""), "qty": number, "price": number (unit price BEFORE VAT), "total": number (line total BEFORE VAT)}]}
+{"supplier": string (the issuing business name, as printed), "description": string (what this invoice is for, 2-5 words in Hebrew, e.g. "ערבות סניף"), "number": string (invoice number), "date": "YYYY-MM-DD" (invoice date), "total": number (final amount to pay INCLUDING VAT), "items": [{"name": string (item description, in the invoice's language), "unit": string (unit if printed, else ""), "qty": number, "price": number (unit price BEFORE VAT), "total": number (line total BEFORE VAT)}]}
 Rules: copy every number exactly as printed on the invoice. Do NOT calculate, convert or remove VAT yourself. Numbers without currency signs or thousands separators. Skip lines that are subtotals, VAT, discounts or payment details. If something is unreadable, use "" or 0.
 Known suppliers (prefer the exact matching name if it is one of them): ${sups.join(' | ')}`;
   window.SCAN_INVOICE=async req=>{
@@ -975,6 +975,7 @@ const mySups=()=>Object.entries(S.sups).filter(([,s])=>(s.hotel||'main')===S.hot
 const myInvs=()=>Object.entries(S.invs).filter(([,v])=>(v.hotel||'main')===S.hotel);
 const invsOfMonth=m=>myInvs().filter(([,v])=>v.month===m).sort((a,b)=>supName(a[1].sup).localeCompare(supName(b[1].sup),'he')||String(a[1].date||'').localeCompare(String(b[1].date||'')));
 const invDate=v=>v.date||((v.month||'')+'-01');
+const invLabel=v=>String(v.desc||'').trim()||(v.number?'חשבונית '+v.number:'');
 const sumAmt=list=>list.reduce((a,[,v])=>a+(+v.amount||0),0);
 const fileSize=n=>n>=1e6?(n/1e6).toFixed(1)+' MB':Math.max(1,Math.round(n/1e3))+' KB';
 const safeName=s=>String(s).replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,90)||'קובץ';
@@ -1021,7 +1022,7 @@ function vInvoices(){
   </section>`;
   if(!sups.length)return wrap(head+emptyBox('עוד אין ספקים','מוסיפים כל ספק פעם אחת: שם, איש קשר וקטגוריה. אחר כך מעלים את החשבונית החודשית שלו, והמערכת מסכמת כמה יצא ועוקבת אחרי המחירים.','<button class="btn pri" data-act="sup-new">הוספת ספק</button>'));
   const rows=list.map(([id,v])=>{const s=S.sups[v.sup],nf=(v.files||[]).length,ni=(v.items||[]).length;return `<button class="li" data-act="inv-open" data-id="${id}">
-    <div class="c1"><div class="n">${esc(supName(v.sup))}</div><div class="sub">${v.number?'חשבונית '+esc(v.number):'בלי מספר'}${v.date?' · '+dmy(v.date):''}</div></div>
+    <div class="c1"><div class="n">${esc(supName(v.sup))}</div><div class="sub">${esc(invLabel(v)||'בלי תיאור ומספר')}${v.date?' · '+dmy(v.date):''}</div></div>
     <div class="c2 sub">${s?.cat?esc(s.cat):''}${ni?`${s?.cat?' · ':''}${ni} פריטים`:''}</div>
     <div class="c3 mono amt">${money(v.amount)}</div>
     <div class="meta">${v.paid?'<span class="pill ok">שולם</span>':'<span class="pill warn">לא שולם</span>'}${nf?`<span class="pill">${nf===1?'קובץ':nf+' קבצים'}</span>`:'<span class="pill bad">אין קובץ</span>'}</div></button>`}).join('');
@@ -1077,7 +1078,7 @@ function sheetSup(){
   <label class="f">הערות<textarea id="sp_note" data-f="sup.note">${esc(g('note'))}</textarea></label>
   <label class="check"><input type="checkbox" id="sp_active" data-f="sup.active" ${dv('sup','active',s.active!==false)?'checked':''}> ספק פעיל (נספר בחשבוניות החסרות של כל חודש)</label>
   <div class="actions"><button class="btn pri" data-act="sup-save">שמירה</button>${isNew?'':`<button class="btn" data-act="inv-new" data-sup="${id}">העלאת חשבונית</button><button class="btn ${S.confirm==='sdel'?'danger':'ghost'}" data-act="sup-del">${S.confirm==='sdel'?(iv.length?'לחיצה נוספת תמחק את הספק. החשבוניות שלו יישארו':'לחיצה נוספת תמחק את הספק'):'מחיקת ספק'}</button>`}</div>
-  ${isNew?'':`<div class="sep"></div><h3>חשבוניות</h3>${iv.length?`<div class="plist">${iv.slice(0,12).map(([iid,v])=>`<button class="prow rowbtn" data-act="inv-open" data-id="${iid}"><span class="who"><b>${monthLabel(v.month)}</b><small>${v.number?'חשבונית '+esc(v.number)+' · ':''}${v.paid?'שולם':'לא שולם'}</small></span><span class="mono">${money(v.amount)}</span></button>`).join('')}</div>`:'<p class="muted">עוד אין חשבוניות.</p>'}
+  ${isNew?'':`<div class="sep"></div><h3>חשבוניות</h3>${iv.length?`<div class="plist">${iv.slice(0,12).map(([iid,v])=>`<button class="prow rowbtn" data-act="inv-open" data-id="${iid}"><span class="who"><b>${monthLabel(v.month)}</b><small>${invLabel(v)?esc(invLabel(v))+' · ':''}${v.paid?'שולם':'לא שולם'}</small></span><span class="mono">${money(v.amount)}</span></button>`).join('')}</div>`:'<p class="muted">עוד אין חשבוניות.</p>'}
   ${items.length?`<div class="sep"></div><h3>מחירים אחרונים</h3><div class="plist">${items.map(r=>`<button class="prow rowbtn" data-act="price-open" data-k="${esc(r.key)}"><span class="who"><b>${esc(r.name)}</b><small>${r.unit?esc(r.unit)+' · ':''}עודכן ${dmy(r.last.date)}</small></span><span class="mono ${r.alert?'up':''}">${money(r.last.price)}${r.chg?` <small>${pct(r.chg)}</small>`:''}</span></button>`).join('')}</div>`:''}`}`;
 }
 
@@ -1101,6 +1102,7 @@ function sheetInv(){
   `${scanHTML(d,nf)}${sups.length?'':'<div class="notice">קודם צריך להוסיף ספק בלשונית ספקים.</div>'}
   <div class="row"><label class="f">ספק<select id="iv_sup" class="${au('sup')}" data-f="inv.sup"><option value="">בחירת ספק</option>${sups.map(([sid,s])=>`<option value="${sid}" ${sid===sup?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>
    <label class="f">חודש<input type="month" class="${au('month')}" id="iv_month" data-f="inv.month" value="${esc(month)}"></label></div>
+  <label class="f">תיאור החשבונית<input type="text" class="${au('desc')}" id="iv_desc" data-f="inv.desc" value="${esc(g('desc'))}" placeholder="למשל: ערבות סניף, מכונת סושי"></label>
   <div class="row"><label class="f">מספר חשבונית<input type="text" class="${au('number')}" id="iv_num" dir="ltr" data-f="inv.number" value="${esc(g('number'))}"></label>
    <label class="f">תאריך החשבונית<input type="date" class="${au('date')}" id="iv_date" data-f="inv.date" value="${esc(date)}"></label>
    <label class="f">סכום כולל מע״מ (₪)<input type="number" class="${au('amount')}" id="iv_amt" min="0" step="0.01" inputmode="decimal" data-f="inv.amount" value="${esc(g('amount'))}"></label></div>
@@ -1155,7 +1157,7 @@ async function saveInvoice(){
       for(let p=0;p<parts;p++)await S.db.doc(`invoiceFiles/${id}_${fid}_${p}`).set({inv:id,part:p,data:n.data.slice(p*CHUNK,(p+1)*CHUNK)});
       files.push({id:fid,name:n.name,type:n.type,size:n.size,parts})}
     const items=(d.items||[]).map(it=>({name:String(it.name||'').trim(),unit:String(it.unit||'').trim(),qty:+it.qty||0,price:+it.price||0})).filter(it=>it.name&&it.price>0);
-    const doc={...v,hotel:v.hotel||S.hotel,sup,month,number:String(g('number')).trim(),date:g('date',''),amount,paid:!!g('paid',false),note:String(g('note')).trim(),items,files,createdAt:v.createdAt||Date.now(),updatedAt:Date.now()};
+    const doc={...v,hotel:v.hotel||S.hotel,sup,month,desc:String(g('desc')).trim(),number:String(g('number')).trim(),date:g('date',''),amount,paid:!!g('paid',false),note:String(g('note')).trim(),items,files,createdAt:v.createdAt||Date.now(),updatedAt:Date.now()};
     await S.db.doc('invoices/'+id).set(doc);S.invs[id]=doc;
     S.busy=false;S.drafts.inv=null;S.sheet=null;clearPreview();S.ivMonth=month;render();toast('החשבונית נשמרה');
   }catch(e){S.busy=false;render();toast(errMsg(e))}}
@@ -1177,7 +1179,7 @@ function sheetPrice(){const r=priceData().find(x=>x.key===S.sheet.k);if(!r)retur
 
 /* ---------- send to accountant ---------- */
 const accSubject=m=>`חשבוניות ספקים ${monthLabel(m)} · ${hotelName(S.hotel)}`;
-function accBody(m,list){const c=cfg();return `שלום${c.accName?' '+c.accName:''},\nמצורפות החשבוניות של ${hotelName(S.hotel)} לחודש ${monthLabel(m)}.\n\n${list.map(([,v])=>`${supName(v.sup)}${v.number?' · חשבונית '+v.number:''} · ${money(v.amount)}${v.paid?'':' (לא שולם)'}`).join('\n')}\n\nסה״כ ${money(sumAmt(list))} ב-${list.length} חשבוניות.\n\nתודה`}
+function accBody(m,list){const c=cfg();return `שלום${c.accName?' '+c.accName:''},\nמצורפות החשבוניות של ${hotelName(S.hotel)} לחודש ${monthLabel(m)}.\n\n${list.map(([,v])=>`${supName(v.sup)}${invLabel(v)?' · '+invLabel(v):''}${v.desc&&v.number?' (מס׳ '+v.number+')':''} · ${money(v.amount)}${v.paid?'':' (לא שולם)'}`).join('\n')}\n\nסה״כ ${money(sumAmt(list))} ב-${list.length} חשבוניות.\n\nתודה`}
 const gmailLink=(to,su,body)=>`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(su)}&body=${encodeURIComponent(body)}`;
 const accChosen=()=>invsOfMonth(S.ivMonth).filter(([id])=>S.sheet.sel[id]!==false);
 function sheetAcc(){
@@ -1186,7 +1188,7 @@ function sheetAcc(){
   const subj=accSubject(m),body=accBody(m,chosen);
   return sheetHead('שליחה לרואה החשבון',`${monthLabel(m)} · ${chosen.length} חשבוניות · ${money(sumAmt(chosen))}`)+
   `<label class="f">המייל של רואה החשבון<input type="email" id="acc_email" dir="ltr" data-f="acc.email" value="${esc(email)}" placeholder="name@example.co.il"></label>
-  <div class="plist">${list.map(([id,v])=>{const n=(v.files||[]).length;return `<label class="prow"><span class="check"><input type="checkbox" id="acc_${id}" data-act="acc-sel" data-id="${id}" ${sel[id]!==false?'checked':''}><span class="who"><b>${esc(supName(v.sup))}</b><small>${v.number?'חשבונית '+esc(v.number)+' · ':''}${n?(n===1?'קובץ אחד':n+' קבצים'):'<span class="up">אין קובץ</span>'}</small></span></span><span class="mono">${money(v.amount)}</span></label>`}).join('')}</div>
+  <div class="plist">${list.map(([id,v])=>{const n=(v.files||[]).length;return `<label class="prow"><span class="check"><input type="checkbox" id="acc_${id}" data-act="acc-sel" data-id="${id}" ${sel[id]!==false?'checked':''}><span class="who"><b>${esc(supName(v.sup))}</b><small>${invLabel(v)?esc(invLabel(v))+' · ':''}${n?(n===1?'קובץ אחד':n+' קבצים'):'<span class="up">אין קובץ</span>'}</small></span></span><span class="mono">${money(v.amount)}</span></label>`}).join('')}</div>
   ${noFile?`<div class="notice">${noFile===1?'לחשבונית אחת':'ל-'+noFile+' חשבוניות'} אין קובץ. ${noFile===1?'היא תופיע':'הן יופיעו'} רק בטבלת הסיכום.</div>`:''}
   ${!prep?`<div class="actions"><button class="btn pri" data-act="acc-prep" ${chosen.length&&!S.busy?'':'disabled'}>${S.busy?'מכין את הקבצים…':`הכנת ${nf} קבצים וטבלת סיכום`}</button></div>`:
   `<p class="muted" style="font-size:.88rem">${prep.share?'מהטלפון: לוחצים על "שליחה מהטלפון", בוחרים Gmail או אפליקציית מייל, ומדביקים בשדה הנמען את המייל של רואה החשבון. הוא מועתק אוטומטית. ':''}מהמחשב: מורידים את קובץ ה-ZIP, פותחים את Gmail ומצרפים אותו. הנושא והטקסט כבר כתובים.</p>
@@ -1199,7 +1201,7 @@ async function prepAcc(){
     for(const [id,v] of list){const fl=v.files||[];for(let i=0;i<fl.length;i++){const f=fl[i],blob=await loadFileBlob(id,f),ext=f.type==='application/pdf'?'pdf':'jpg';
       const base=safeName(`${supName(v.sup)} - ${v.number?'חשבונית '+v.number:monthLabel(v.month)}${fl.length>1?' ('+(i+1)+')':''}`);let n=base,k=2;while(used[n])n=`${base} ${k++}`;used[n]=1;
       files.push(new File([blob],`${n}.${ext}`,{type:f.type}))}}
-    const rows=[['ספק','מספר חשבונית','תאריך','חודש','סכום כולל מע"מ','שולם','הערות'],...list.map(([,v])=>[supName(v.sup),v.number||'',v.date||'',monthLabel(v.month),v.amount,v.paid?'כן':'לא',v.note||'']),['סה"כ','','','',sumAmt(list),'','']];
+    const rows=[['ספק','תיאור','מספר חשבונית','תאריך','חודש','סכום כולל מע"מ','שולם','הערות'],...list.map(([,v])=>[supName(v.sup),v.desc||'',v.number||'',v.date||'',monthLabel(v.month),v.amount,v.paid?'כן':'לא',v.note||'']),['סה"כ','','','','',sumAmt(list),'','']];
     const csv='﻿'+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\r\n');
     const sumName=safeName(`סיכום חשבוניות ${monthLabel(m)}`)+'.csv',csvFile=new File([csv],sumName,{type:'text/csv'});
     let zip=null;if(window.JSZip){const z=new JSZip();files.forEach(f=>z.file(f.name,f));z.file(sumName,csv);zip=await z.generateAsync({type:'blob'})}
@@ -1306,7 +1308,7 @@ function vCeo(){
   const dmx=Math.max(1,...Object.values(L.dept));
   const labCard=`<div class="card"><h3>עובדים לפי מחלקה</h3>${L.total?`<div class="bars">${DEPTS.map(d=>`<div class="bar"><span>${d.n}</span><div class="track"><div class="fill" style="width:${(L.dept[d.k]/dmx*100).toFixed(1)}%;background:var(--s-lab)" title="${ils(L.dept[d.k])}"></div></div><span class="val">${ils(L.dept[d.k])}</span></div>`).join('')}</div>
     <p class="muted" style="font-size:.8rem">שעתיים ${ils(L.hourly)} · גלובליים ${ils(L.glob)} · מזומן ${ils(L.cash)}</p>`:'<p class="muted">אין עלות עובדים לחודש הזה. צריך עובדים עם שכר מוגדר ומשובצים בסידור.</p>'}</div>`;
-  const unpaid=allUnpaid.length?`<div class="card"><h3>חשבוניות שעוד לא שולמו</h3><div class="plist">${allUnpaid.slice(0,10).map(([id,v])=>`<button class="prow rowbtn" data-act="inv-open" data-id="${id}"><span class="who"><b>${esc(supName(v.sup))}</b><small>${monthLabel(v.month)}${v.number?' · חשבונית '+esc(v.number):''}</small></span><span class="mono">${money(v.amount)}</span></button>`).join('')}</div>${allUnpaid.length>10?`<p class="muted" style="font-size:.82rem">ועוד ${allUnpaid.length-10}.</p>`:''}</div>`:'';
+  const unpaid=allUnpaid.length?`<div class="card"><h3>חשבוניות שעוד לא שולמו</h3><div class="plist">${allUnpaid.slice(0,10).map(([id,v])=>`<button class="prow rowbtn" data-act="inv-open" data-id="${id}"><span class="who"><b>${esc(supName(v.sup))}</b><small>${monthLabel(v.month)}${invLabel(v)?' · '+esc(invLabel(v)):''}</small></span><span class="mono">${money(v.amount)}</span></button>`).join('')}</div>${allUnpaid.length>10?`<p class="muted" style="font-size:.82rem">ועוד ${allUnpaid.length-10}.</p>`:''}</div>`:'';
   return wrap(head+hero+(warn.length?`<div class="notice">${warn.join('<br>')}</div>`:'')+kp+trend+`<div class="two">${supCard}${labCard}</div>`+unpaid);
 }
 /* ================= one-time import of the starting data ================= */
@@ -1356,6 +1358,7 @@ async function runScan(idx){const d=invDraft(),f=d.newFiles[idx];if(!f)return;
     if(!S.sheet||S.sheet.type!=='inv'||S.drafts.inv!==d)return;
     const auto={},fields=[];const sup=matchSup(res.supplier);
     if(sup){d.sup=sup;auto.sup=1;fields.push('ספק')}
+    if(res.description&&!String(d.desc||'').trim()){d.desc=String(res.description).trim();auto.desc=1;fields.push('תיאור')}
     if(res.number){d.number=String(res.number);auto.number=1;fields.push('מספר חשבונית')}
     if(/^\d{4}-\d{2}-\d{2}$/.test(res.date||'')){d.date=res.date;d.month=res.date.slice(0,7);auto.date=auto.month=1;fields.push('תאריך')}
     if(+res.total>0){d.amount=String(Math.round(+res.total*100)/100);auto.amount=1;fields.push('סכום')}
